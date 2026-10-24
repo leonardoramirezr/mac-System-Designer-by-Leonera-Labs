@@ -38,15 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    // Give the page a chance to write its pending autosave before quitting.
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let controller = windowController else { return .terminateNow }
-        controller.flushBeforeQuit {
-            NSApp.reply(toApplicationShouldTerminate: true)
-        }
-        return .terminateLater
-    }
-
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
     }

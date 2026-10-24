@@ -45,7 +45,6 @@
   --side-code-w: 420px;
   --insp-w: 304px;
   --left-inset: 0px;
-  --zoom-room: 184px;
 }
 body.sidebar-open { --left-inset: calc(var(--side-w) + 12px); }
 body.sidebar-code { --left-inset: calc(var(--side-code-w) + 12px); }
@@ -205,6 +204,20 @@ body.sidebar-open .sidebar-toggle + .toolbar-sep { display: none; }
 .icon-btn:disabled, .tool-btn:disabled { opacity: 0.35; background: transparent; }
 .tool-btn.on { background: var(--accent-soft); color: var(--accent-text); }
 
+/* narrow windows: toolbar buttons collapse to icons */
+@media (max-width: 1199px) {
+  body.sidebar-open .tool-btn .btn-label { display: none; }
+  body.sidebar-open .tool-btn { padding: 0 7px; }
+}
+@media (max-width: 1339px) {
+  body.sidebar-code .tool-btn .btn-label { display: none; }
+  body.sidebar-code .tool-btn { padding: 0 7px; }
+}
+@media (max-width: 1240px) {
+  body.sidebar-code .save-status { display: none; }
+  body.sidebar-code .doc-name { max-width: 160px; }
+}
+
 .doc-name {
   border: none;
   background: transparent;
@@ -224,17 +237,8 @@ body.sidebar-open .sidebar-toggle + .toolbar-sep { display: none; }
 .save-status:empty { display: none; }
 .save-status[data-status="error"] { color: var(--danger); }
 
-.zoombar {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  align-items: center;
-  padding: 3px;
-  height: 36px;
-  gap: 1px;
-}
-.zoombar .icon-btn { width: 28px; height: 28px; }
+.zoombar { gap: 1px; }
+.zoombar .icon-btn { width: 28px; }
 .zoom-pct {
   border: none;
   background: transparent;
@@ -515,7 +519,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 26px; 
   left: calc(var(--left-inset) + (100% - var(--left-inset)) / 2);
   bottom: 12px;
   transform: translateX(-50%);
-  width: min(680px, calc(100% - var(--left-inset) - 2 * var(--zoom-room)));
+  width: min(680px, calc(100% - var(--left-inset) - 48px));
   transition: left 0.22s ease, width 0.22s ease;
   display: flex;
   flex-direction: column;
@@ -559,6 +563,7 @@ select.field { appearance: none; -webkit-appearance: none; padding-right: 26px; 
 .chip:hover { background: var(--hover); color: var(--text-2); }
 .chip-provider { font-weight: 600; color: var(--text-2); }
 .chip-model { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 96px; }
+@media (max-width: 1240px) { body.sidebar-open .chip-model { display: none; } }
 .chip-model.missing { color: var(--warn); }
 .send-btn {
   width: 30px;

@@ -127,6 +127,9 @@
     state.selection = validSelection(items || []);
     applySelection();
     emit('selection', opts || {});
+    // the inspector may now cover the selected component
+    const only = state.selection.length === 1 && state.selection[0].kind === 'node' ? rendered.nodeEls.get(state.selection[0].id) : null;
+    if (only) requestAnimationFrame(() => SD.canvas.ensureVisible(tileRect(only)));
   }
 
   function toggleSelect(item) {
@@ -314,8 +317,10 @@
 
   // ----------------------------------------------------------------- saving
 
-  let saveTimer = null;
-  let savePromise = null;
+  // Every change is written right away (one write in flight, the latest
+  // state queued behind it), so quitting the app never waits on the page.
+  let saving = null;
+  let saveAgain = false;
 
   const shouldPersist = () => !!state.docId || state.doc.nodes.length > 0 || state.doc.groups.length > 0;
 
@@ -324,21 +329,27 @@
     const el = document.getElementById('save-status');
     if (!el) return;
     el.dataset.status = s;
-    el.textContent = { pending: 'Editado', saving: 'Guardando…', saved: 'Guardado', error: 'Sin guardar' }[s] || '';
+    el.textContent = { saved: 'Guardado', error: 'Sin guardar' }[s] || '';
   }
 
   function scheduleSave() {
     if (!shouldPersist()) return;
-    clearTimeout(saveTimer);
-    setSaveStatus('pending');
-    saveTimer = setTimeout(() => save(), 700);
+    if (saving) {
+      saveAgain = true;
+      return;
+    }
+    saving = (async () => {
+      do {
+        saveAgain = false;
+        await writeOnce();
+      } while (saveAgain);
+    })().finally(() => {
+      saving = null;
+    });
   }
 
-  async function save() {
-    clearTimeout(saveTimer);
-    saveTimer = null;
+  async function writeOnce() {
     if (!shouldPersist()) return;
-    if (savePromise) await savePromise.catch(() => {});
     if (!state.docId) state.docId = uuid();
     const id = state.docId;
     const content = SD.sdll.serialize(state.doc);
@@ -346,27 +357,30 @@
       setSaveStatus('saved');
       return;
     }
-    setSaveStatus('saving');
-    savePromise = SD.bridge.saveDiagram(id, state.doc.name, content);
     try {
-      const res = await savePromise;
+      const res = await SD.bridge.saveDiagram(id, state.doc.name, content);
+      if (id !== state.docId) return;
       state.lastSavedContent = content;
+      const known = state.library.find((d) => d.id === id);
+      const reorder = !known || known.name !== state.doc.name || (state.library[0] && state.library[0].id !== id);
       const entry = { id, name: state.doc.name, updatedAt: (res && res.updatedAt) || new Date().toISOString() };
       state.library = [entry, ...state.library.filter((d) => d.id !== id)];
-      SD.bridge.setPref('lastOpened', id).catch(() => {});
-      setSaveStatus(saveTimer ? 'pending' : 'saved');
-      emit('library');
+      if (!known) SD.bridge.setPref('lastOpened', id).catch(() => {});
+      setSaveStatus('saved');
+      if (reorder) emit('library');
     } catch (e) {
+      if (state.saveStatus !== 'error') toast('No se pudo guardar: ' + (e.message || e), { kind: 'error' });
       setSaveStatus('error');
-      toast('No se pudo guardar: ' + (e.message || e), { kind: 'error' });
-    } finally {
-      savePromise = null;
     }
   }
 
   async function flushSave() {
-    if (saveTimer) await save();
-    else if (savePromise) await savePromise.catch(() => {});
+    while (saving) await saving;
+  }
+
+  async function save() {
+    scheduleSave();
+    await flushSave();
   }
 
   // ---------------------------------------------------------------- library
@@ -750,15 +764,15 @@
         h('span.save-status#save-status'),
       ),
       h('div.pill.toolbar',
-        h('button.tool-btn#btn-add', { type: 'button', title: `Añadir componente (${SD.ui.mod}K)`, onclick: (e) => openComponentPicker(e.currentTarget) }, icon('plus', 16), h('span', 'Componente')),
-        h('button.tool-btn#btn-group', { type: 'button', title: `Agrupar selección (${SD.ui.mod}G)`, onclick: () => groupOrPick() }, icon('square-dashed', 16), h('span', 'Grupo')),
+        h('button.tool-btn#btn-add', { type: 'button', title: `Añadir componente (${SD.ui.mod}K)`, onclick: (e) => openComponentPicker(e.currentTarget) }, icon('plus', 16), h('span.btn-label', 'Componente')),
+        h('button.tool-btn#btn-group', { type: 'button', title: `Agrupar selección (${SD.ui.mod}G)`, onclick: () => groupOrPick() }, icon('square-dashed', 16), h('span.btn-label', 'Grupo')),
         h('span.toolbar-sep'),
         h('button.icon-btn#btn-undo', { type: 'button', title: `Deshacer (${SD.ui.mod}Z)`, 'aria-label': 'Deshacer', onclick: () => undo(), disabled: true }, icon('undo-2', 16)),
         h('button.icon-btn#btn-redo', { type: 'button', title: `Rehacer (⇧${SD.ui.mod}Z)`, 'aria-label': 'Rehacer', onclick: () => redo(), disabled: true }, icon('redo-2', 16))
       ),
     ]);
 
-    const exportBtn = h('button.tool-btn', { type: 'button', title: 'Exportar' }, icon('download', 16), h('span', 'Exportar'));
+    const exportBtn = h('button.tool-btn', { type: 'button', title: 'Exportar' }, icon('download', 16), h('span.btn-label', 'Exportar'));
     exportBtn.addEventListener('click', () =>
       SD.ui.menu(
         [
@@ -774,7 +788,7 @@
     );
     SD.ui.append(right, [
       h('div.pill.toolbar',
-        h('button.tool-btn#btn-code', { type: 'button', title: 'Ver y editar el código Mermaid', onclick: () => toggleSidebar('code') }, icon('code', 16), h('span', 'Mermaid')),
+        h('button.tool-btn#btn-code', { type: 'button', title: 'Ver y editar el código Mermaid', onclick: () => toggleSidebar('code') }, icon('code', 16), h('span.btn-label', 'Mermaid')),
         exportBtn
       ),
     ]);
@@ -796,7 +810,8 @@
   }
 
   function buildZoombar() {
-    const bar = document.getElementById('zoombar');
+    const bar = h('div.pill.toolbar.zoombar#zoombar');
+    document.getElementById('topbar-right').prepend(bar);
     const pct = h('button.zoom-pct', { type: 'button', title: 'Ajustar a la vista (⌘0)', onclick: () => SD.canvas.fit() }, '100%');
     SD.ui.append(bar, [
       iconButton('zoom-out', 'Alejar (⌘−)', () => SD.canvas.zoomStep(-1)),

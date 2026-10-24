@@ -9,19 +9,6 @@ private let canvasColor = NSColor(name: "canvas") { appearance in
     return NSColor(srgbRed: 0xF6 / 255.0, green: 0xF6 / 255.0, blue: 0xF7 / 255.0, alpha: 1)
 }
 
-// Calls a completion once, whichever of the page reply or the timeout comes first.
-@MainActor
-private final class OnceGate {
-    private var done = false
-    private let action: () -> Void
-    init(_ action: @escaping () -> Void) { self.action = action }
-    func fire() {
-        if done { return }
-        done = true
-        action()
-    }
-}
-
 // One window hosting the web UI (web/index.html) in a WKWebView.
 @MainActor
 final class MainWindowController: NSWindowController, NSWindowDelegate, WKNavigationDelegate {
@@ -136,26 +123,6 @@ final class MainWindowController: NSWindowController, NSWindowDelegate, WKNaviga
             bridge.pendingFiles.append(contentsOf: files)
         }
         window?.makeKeyAndOrderFront(nil)
-    }
-
-    func flushBeforeQuit(_ done: @escaping () -> Void) {
-        guard isLoaded else {
-            done()
-            return
-        }
-        let gate = OnceGate(done)
-        webView.callAsyncJavaScript(
-            "if (window.SD && SD.app) { await SD.app.flushSave(); } return true;",
-            arguments: [:],
-            in: nil,
-            in: .page
-        ) { _ in
-            Task { @MainActor in gate.fire() }
-        }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            gate.fire()
-        }
     }
 
     // MARK: Self-test (CI)
