@@ -1,0 +1,13 @@
+{
+  "name": "system-designer",
+  "private": true,
+  "description": "Development tooling for System Designer (the app itself has no npm dependencies at runtime).",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "icons": "node scripts/build-icons.mjs",
+    "vendor": "bash scripts/fetch-vendor.sh"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "1.2.147"
+  }
+}

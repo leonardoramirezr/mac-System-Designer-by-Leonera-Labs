@@ -1,0 +1,82 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  web-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests (model, .sdll format, parser)
+        run: node --test tests/*.test.js
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          xcrun swiftc --version
+
+      - name: Build universal app
+        shell: bash
+        run: UNIVERSAL=1 bash build.sh
+
+      - name: Verify bundle
+        shell: bash
+        run: |
+          APP="build/System Designer.app"
+          plutil -lint "$APP/Contents/Info.plist"
+          lipo -info "$APP/Contents/MacOS/SystemDesigner"
+          codesign --verify --deep --strict "$APP"
+          test -f "$APP/Contents/Resources/web/index.html"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+
+      - name: Self-test (launch, bridge, render)
+        shell: bash
+        run: |
+          OUT="$RUNNER_TEMP/selftest"
+          "build/System Designer.app/Contents/MacOS/SystemDesigner" --self-test "$OUT" &
+          PID=$!
+          for i in $(seq 1 60); do
+            if [ -f "$OUT/report.json" ] && ! kill -0 "$PID" 2>/dev/null; then break; fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          echo "--- report ---"
+          cat "$OUT/report.json" || { echo "no report written"; exit 1; }
+          echo
+          python3 - "$OUT/report.json" <<'EOF'
+          import json, sys
+          report = json.load(open(sys.argv[1]))
+          for step in report.get("steps", []):
+              mark = "ok " if step["ok"] else ("warn" if step.get("optional") else "FAIL")
+              print(f"[{mark}] {step['name']}: {step.get('value', step.get('error'))}")
+          sys.exit(0 if report.get("ok") and report.get("native") else 1)
+          EOF
+
+      - name: Package
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "build/System Designer.app" ]; then
+            ditto -c -k --keepParent "build/System Designer.app" "System-Designer.zip"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: System-Designer
+          path: |
+            System-Designer.zip
+            ${{ runner.temp }}/selftest/
+          if-no-files-found: ignore

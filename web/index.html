@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' file: data: blob:; font-src 'self' file: data:; connect-src *; object-src 'none'; base-uri 'none'">
+  <title>System Designer</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="app">
+    <main id="canvas" tabindex="0" aria-label="Lienzo del diagrama">
+      <div id="world"></div>
+      <div id="overlay"></div>
+    </main>
+
+    <div id="empty-state" class="empty-state" hidden></div>
+
+    <aside id="sidebar" class="panel sidebar" hidden></aside>
+
+    <header id="topbar" class="topbar">
+      <div class="toolbar-group" id="topbar-left"></div>
+      <div class="toolbar-group" id="topbar-right"></div>
+    </header>
+
+    <aside id="inspector" class="panel inspector" hidden></aside>
+
+    <section id="ai" class="ai"></section>
+
+    <div id="zoombar" class="pill zoombar"></div>
+
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+    <div id="layer"></div>
+  </div>
+
+  <script src="vendor/mermaid.min.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/sdll.js"></script>
+  <script src="js/bridge.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/markdown.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/canvas.js"></script>
+  <script src="js/picker.js"></script>
+  <script src="js/inspector.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/llm.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
