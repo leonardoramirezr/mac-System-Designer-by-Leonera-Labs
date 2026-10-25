@@ -478,7 +478,7 @@
   }
 
   async function copyMermaid() {
-    const text = SD.sdll.serialize(state.doc);
+    const text = SD.sdll.serialize(state.doc, { external: true });
     try {
       await navigator.clipboard.writeText(text);
     } catch (e) {

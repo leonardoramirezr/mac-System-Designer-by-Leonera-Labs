@@ -22,6 +22,15 @@
   const ICON_SIZE = 46;
   const GROUP_CLASS_PREFIX = 'grp_';
   const PLACEHOLDER_PREFIX = 'sdph_';
+  const TOOL_NAME = 'System Designer by Leonera Labs';
+  const TOOL_URL = 'https://github.com/leonardoramirezr/mac-System-Designer-by-Leonera-Labs';
+  // Light palette, as in the exported SVG: the external copy draws its icons with it.
+  const EXPORT_COLORS = { tile: '#ffffff', tileBorder: '#d9d9de', icon: '#27272a' };
+  const EXTERNAL_NOTES = [
+    `%% Generated with ${TOOL_NAME}`,
+    `%% ${TOOL_URL}`,
+    '%% Do not edit this by hand: you can import it into System Designer and edit it there.',
+  ];
 
   // ---------------------------------------------------------------- escaping
 
@@ -128,7 +137,32 @@
     return items.sort((a, b) => a.key - b.key);
   }
 
-  function serializeNode(node) {
+  // The component icon as a self-contained SVG image (tile plus glyph), so a
+  // Mermaid renderer that does not know the `sd` icon pack still draws it.
+  function iconDataUri(type) {
+    const bodies = SD.iconBodies || {};
+    const body = (bodies[SD.catalog.type(type).icon] || bodies.shapes || '')
+      .replace(/currentColor/g, EXPORT_COLORS.icon)
+      .replace(/stroke-width="2"/g, 'stroke-width="1.6"');
+    const radius = SD.catalog.isClient(type) ? (ICON_SIZE - 1) / 2 : 10;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 ${ICON_SIZE} ${ICON_SIZE}">`
+      + `<rect x="0.5" y="0.5" width="${ICON_SIZE - 1}" height="${ICON_SIZE - 1}" rx="${radius}" fill="${EXPORT_COLORS.tile}" stroke="${EXPORT_COLORS.tileBorder}"/>`
+      + `<g transform="translate(11 11)" fill="none" stroke="${EXPORT_COLORS.icon}" stroke-linecap="round" stroke-linejoin="round">${body}</g></svg>`;
+    return 'data:image/svg+xml;base64,' + btoa(svg);
+  }
+
+  // Icon id of every component (`sd:server`), kept in the metadata of external copies.
+  function iconIndex(doc) {
+    const icons = {};
+    doc.nodes.forEach((n) => {
+      icons[n.id] = `${ICON_PREFIX}:${n.type}`;
+    });
+    return icons;
+  }
+
+  // External copies draw each component as an image, which any Mermaid renderer can show.
+  function serializeNode(node, external) {
+    if (external) return `${node.id}@{ img: "${iconDataUri(node.type)}", label: "${nodeLabel(node)}", pos: "b", h: ${ICON_SIZE} }`;
     const form = SD.catalog.isClient(node.type) ? 'circle' : 'rounded';
     return `${node.id}@{ icon: "${ICON_PREFIX}:${node.type}", form: "${form}", label: "${nodeLabel(node)}", pos: "b", h: ${ICON_SIZE} }`;
   }
@@ -137,10 +171,13 @@
   // options.placeholders: render a hint inside empty groups (Mermaid would
   //   otherwise draw an empty subgraph as a plain box)
   // options.header: include the sdll header and metadata comment
+  // options.external: the text copied to other Mermaid renderers. Icons are
+  //   embedded as images; the metadata keeps each component's icon id and the
+  //   header says where the diagram comes from. Implies the header.
   function serialize(doc, options) {
-    const opts = Object.assign({ palette: 'light', placeholders: false, header: true }, options);
+    const opts = Object.assign({ palette: 'light', placeholders: false, header: true, external: false }, options);
     const lines = [];
-    if (opts.header) {
+    if (opts.header || opts.external) {
       const meta = {
         format: 'sdll',
         version: FORMAT_VERSION,
@@ -148,7 +185,9 @@
         createdAt: doc.createdAt,
         updatedAt: doc.updatedAt,
       };
+      if (opts.external) meta.icons = iconIndex(doc);
       lines.push(HEADER);
+      if (opts.external) lines.push(...EXTERNAL_NOTES);
       lines.push('%% @meta ' + JSON.stringify(meta));
     }
     lines.push(`flowchart ${doc.direction || 'LR'}`);
@@ -158,7 +197,7 @@
       const children = orderedChildren(doc, gid);
       children.forEach(({ kind, item }) => {
         if (kind === 'node') {
-          lines.push(pad + serializeNode(item));
+          lines.push(pad + serializeNode(item, opts.external));
         } else {
           lines.push(`${pad}subgraph ${item.id}["${groupLabel(item)}"]`);
           const before = lines.length;
@@ -491,6 +530,7 @@
     const warnings = [];
     let text = String(source || '').replace(/\r\n?/g, '\n');
     const meta = readMeta(text);
+    const declaredIcons = meta.icons && typeof meta.icons === 'object' ? meta.icons : {};
     const fm = extractFrontmatter(text);
     text = stripComments(fm.body);
 
@@ -696,6 +736,9 @@
     // resolve node types
     doc.nodes.forEach((n) => {
       const text = `${n.id.replace(/_/g, ' ')} ${n.title}`;
+      // external copies declare each icon in the metadata (`sd:server`)
+      const declared = /^sd:([\w-]+)$/.exec(String(declaredIcons[n.id] || ''));
+      if (!n.type && declared && SD.catalog.hasType(declared[1])) n.type = declared[1];
       if (!n.type) {
         if (n._hint) n.type = M().inferType(n._hint + ' ' + text, null);
         if (!n.type) {
