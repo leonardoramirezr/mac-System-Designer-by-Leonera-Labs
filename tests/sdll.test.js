@@ -1,11 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+require('../web/js/icons.js');
 require('../web/js/catalog.js');
 require('../web/js/model.js');
 require('../web/js/sdll.js');
 
 const { model, sdll } = globalThis.SD;
+
+const comparable = (d) => ({
+  name: d.name,
+  direction: d.direction,
+  nodes: d.nodes,
+  groups: d.groups,
+  edges: d.edges.map(({ from, to, label, style, arrow }) => ({ from, to, label, style, arrow })),
+});
 
 function sample() {
   const doc = model.emptyDoc('Checkout');
@@ -41,14 +50,38 @@ test('parse(serialize(doc)) round-trips the model', () => {
   const { doc } = sample();
   const { doc: back, warnings } = sdll.parse(sdll.serialize(doc));
   assert.deepEqual(warnings, []);
-  const strip = (d) => ({
-    name: d.name,
-    direction: d.direction,
-    nodes: d.nodes,
-    groups: d.groups,
-    edges: d.edges.map(({ from, to, label, style, arrow }) => ({ from, to, label, style, arrow })),
-  });
-  assert.deepEqual(strip(back), strip(doc));
+  assert.deepEqual(comparable(back), comparable(doc));
+});
+
+test('external copy embeds icons as images and declares each icon id in the metadata', () => {
+  const { doc, api } = sample();
+  const text = sdll.serialize(doc, { external: true });
+  assert.match(text, /^%% System Designer · sdll v1\n%% Diagrama generado con System Designer by Leonera Labs\n%% https:\/\/github\.com\/leonardoramirezr\/mac-System-Designer-by-Leonera-Labs\n%% No lo edites a mano: puedes importarlo en System Designer y editarlo allí\.\n%% @meta \{/);
+  assert.doesNotMatch(text, /icon: "sd:/);
+  assert.match(text, /servidor@\{ img: "data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+", label: "API<br><small>REST &quot;v2&quot;/);
+  const meta = JSON.parse(/^%% @meta (.*)$/m.exec(text)[1]);
+  assert.equal(meta.icons[api], 'sd:server');
+  assert.equal(meta.icons.web_app, 'sd:web');
+  assert.equal(Object.keys(meta.icons).length, doc.nodes.length);
+  assert.doesNotMatch(sdll.serialize(doc), /"icons"/, 'the file format is unchanged');
+});
+
+test('external copy parses back to the same model and types', () => {
+  const { doc } = sample();
+  const { doc: back, warnings } = sdll.parse(sdll.serialize(doc, { external: true }));
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(comparable(back), comparable(doc));
+  assert.deepEqual(back.nodes.map((n) => n.type), doc.nodes.map((n) => n.type));
+});
+
+test('a node without a declared icon falls back to inference from its title', () => {
+  const src = [
+    '%% @meta {"format":"sdll","version":1,"name":"Ajeno"}',
+    'flowchart LR',
+    '  a@{ img: "data:image/svg+xml;base64,PHN2Zy8+", label: "Cola de pedidos" }',
+  ].join('\n');
+  const { doc } = sdll.parse(src);
+  assert.equal(doc.nodes[0].type, 'queue');
 });
 
 test('round-trips awkward text', () => {
