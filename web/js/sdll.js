@@ -27,9 +27,9 @@
   // Light palette, as in the exported SVG: the external copy draws its icons with it.
   const EXPORT_COLORS = { tile: '#ffffff', tileBorder: '#d9d9de', icon: '#27272a' };
   const EXTERNAL_NOTES = [
-    `%% Diagrama generado con ${TOOL_NAME}`,
+    `%% Generated with ${TOOL_NAME}`,
     `%% ${TOOL_URL}`,
-    '%% No lo edites a mano: puedes importarlo en System Designer y editarlo allí.',
+    '%% Do not edit this by hand: you can import it into System Designer and edit it there.',
   ];
 
   // ---------------------------------------------------------------- escaping

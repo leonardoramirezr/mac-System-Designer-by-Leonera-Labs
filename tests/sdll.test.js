@@ -56,7 +56,7 @@ test('parse(serialize(doc)) round-trips the model', () => {
 test('external copy embeds icons as images and declares each icon id in the metadata', () => {
   const { doc, api } = sample();
   const text = sdll.serialize(doc, { external: true });
-  assert.match(text, /^%% System Designer · sdll v1\n%% Diagrama generado con System Designer by Leonera Labs\n%% https:\/\/github\.com\/leonardoramirezr\/mac-System-Designer-by-Leonera-Labs\n%% No lo edites a mano: puedes importarlo en System Designer y editarlo allí\.\n%% @meta \{/);
+  assert.match(text, /^%% System Designer · sdll v1\n%% Generated with System Designer by Leonera Labs\n%% https:\/\/github\.com\/leonardoramirezr\/mac-System-Designer-by-Leonera-Labs\n%% Do not edit this by hand: you can import it into System Designer and edit it there\.\n%% @meta \{/);
   assert.doesNotMatch(text, /icon: "sd:/);
   assert.match(text, /servidor@\{ img: "data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+", label: "API<br><small>REST &quot;v2&quot;/);
   const meta = JSON.parse(/^%% @meta (.*)$/m.exec(text)[1]);
